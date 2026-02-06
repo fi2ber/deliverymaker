@@ -1,0 +1,27 @@
+
+┌─────────────────────────────────────────────────────────┐
+│ A new version of Flutter is available!                  │
+│                                                         │
+│ To update to the latest version, run "flutter upgrade". │
+└─────────────────────────────────────────────────────────┘
+Running Gradle task 'assembleRelease'...                        
+Injected namespace 'com.deliverymaker.generated.isar_flutter_libs' for project isar_flutter_libs
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':isar_flutter_libs:verifyReleaseResources'.
+> A failure occurred while executing com.android.build.gradle.tasks.VerifyLibraryResourcesTask$Action
+   > Android resource linking failed
+     ERROR: /Users/fi2ber/Project/DeliveryMaker/apps/mobile/build/isar_flutter_libs/intermediates/merged_res/release/mergeReleaseResources/values/values.xml:194: AAPT: error: resource android:attr/lStar not found.
+
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 16s
+Running Gradle task 'assembleRelease'...                           17,0s
+Gradle task assembleRelease failed with exit code 1

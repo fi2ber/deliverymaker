@@ -1,0 +1,51 @@
+Implementation Plan - DeliveryMaker SaaS
+Goal Description
+Build a premium SaaS distribution and sales platform for the Uzbekistan market. The system requires hard data isolation per tenant, offline-first mobile operations for agents, robust warehouse management (FIFO/FEFO), and advanced AI analytics.
+
+User Review Required
+IMPORTANT
+
+Tenancy Isolation Strategy: We will use PostgreSQL Schemas (one schema per tenant) within a single database cluster. This offers the requested "hard isolation" of data without the massive overhead of managing thousands of separate database instances.
+
+Offline-first Strategy: We will use a local database on the mobile app (Isar or SQLite via Drift) and a Sync Queue pattern. The server will act as the source of truth with conflict resolution favoring the server (or specific rules per entity).
+
+Proposed Tech Stack
+Monorepo Manager: Turborepo (for managing Web, Backend, and Shared types)
+Backend: NestJS (Node.js)
+Reason: Strong typing, excellent module system for separating Tenant/Core logic, massive ecosystem.
+Database: PostgreSQL
+Tenancy: postgres-multi-tenant approach (Schema per tenant).
+Web Admin: Next.js (React)
+UI Framework: TailwindCSS + shadcn/ui (for the "Premium" look requested).
+Reason: Best performance, SEO capability, and developer experience.
+Mobile: Flutter
+Local DB: Isar (high performance NoSQL for local storage) or Drift (SQL).
+State Management: Bloc or Riverpod.
+AI: OpenAI API (GPT-4o) integratied via LangChain/Vercel SDK on the backend.
+Proposed Changes
+[Infrastructure]
+[NEW] [monorepo_setup]
+Initialize Turborepo.
+Configure ESLint, Prettier, TypeScript configs shared across packages.
+[Backend] (NestJS)
+[NEW] [backend_core]
+Setup NestJS project.
+Tenancy Middleware: Intercepts requests, identifies tenant (subdomain or header), extracts connection string/schema name.
+Auth Module: JWT Strategy, Role-based Guards (SuperAdmin, Director, Warehouse, etc.).
+Database Module: Dynamic module to switch schemas based on current tenant context.
+[Web Admin] (Next.js)
+[NEW] [web_admin]
+Setup Next.js app.
+Dashboard Layout: Premium sidebar navigation, dark/light mode toggle.
+Auth Pages: Login with Tenant resolution.
+[Mobile] (Flutter)
+[NEW] [mobile_app]
+Initialize Flutter project (separate from Turbo or inside if desired, usually better separate for build tools).
+Sync Engine: Service to push local changes to API and pull updates.
+Verification Plan
+Automated Tests
+Backend: Unit tests for Services, E2E tests for Tenancy isolation (ensure Tenant A cannot access Tenant B data).
+Mobile: Widget tests for UI, Unit tests for Sync logic.
+Manual Verification
+Isolation Test: Create two tenants. Create a product in Tenant A. login as Tenant B and verify product is NOT visible.
+Offline Test: Turn off network. Create an order in Mobile. Turn on network. Verify order syncs to Web Admin.

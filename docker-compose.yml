@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Database
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-delivery_maker}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - delivery-net
+
+  # Redis (Optional/Future for Queues)
+  redis:
+    image: redis:alpine
+    restart: always
+    networks:
+      - delivery-net
+
+  # Backend
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: always
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-delivery_maker}
+      # JWT_SECRET: ... (Add in .env)
+    depends_on:
+      - postgres
+    networks:
+      - delivery-net
+
+  # Frontend
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://api.deliverymaker.uz # Or client side logic
+    depends_on:
+      - api
+    networks:
+      - delivery-net
+
+  # Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      #- "443:443" # SSL to be added with Certbot
+    volumes:
+      - ./deployment/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - web
+    networks:
+      - delivery-net
+
+volumes:
+  pgdata:
+
+
+networks:
+  delivery-net:
+    driver: bridge

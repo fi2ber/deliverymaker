@@ -1,0 +1,66 @@
+Running Gradle task 'assembleRelease'...                        
+Injected namespace 'com.deliverymaker.generated.isar_flutter_libs' for project isar_flutter_libs
+Checking the license for package Android SDK Platform 30 in /Users/fi2ber/Library/Android/sdk/licenses
+License for package Android SDK Platform 30 accepted.
+Preparing "Install Android SDK Platform 30 (revision 3)".
+"Install Android SDK Platform 30 (revision 3)" ready.
+Installing Android SDK Platform 30 in /Users/fi2ber/Library/Android/sdk/platforms/android-30
+"Install Android SDK Platform 30 (revision 3)" complete.
+"Install Android SDK Platform 30 (revision 3)" finished.
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 4856 bytes (99.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+Incorrect package="dev.isar.isar_flutter_libs" found in source AndroidManifest.xml: /Users/fi2ber/.pub-cache/hosted/pub.dev/isar_flutter_libs-3.1.0+1/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
+Recommendation: remove package="dev.isar.isar_flutter_libs" from the source AndroidManifest.xml: /Users/fi2ber/.pub-cache/hosted/pub.dev/isar_flutter_libs-3.1.0+1/android/src/main/AndroidManifest.xml.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/BackgroundWorker.kt:14:44 Unresolved reference 'shim'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/BackgroundWorker.kt:98:55 Unresolved reference 'registerWith'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/BackgroundWorker.kt:98:68 Unresolved reference 'ShimPluginRegistry'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/WorkmanagerPlugin.kt:35:52 Unresolved reference 'PluginRegistrantCallback'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/WorkmanagerPlugin.kt:38:52 Unresolved reference 'Registrar'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/WorkmanagerPlugin.kt:40:49 Unresolved reference 'context'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/WorkmanagerPlugin.kt:40:70 Unresolved reference 'messenger'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/WorkmanagerPlugin.kt:41:23 Unresolved reference 'addViewDestroyListener'.
+e: file:///Users/fi2ber/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/kotlin/dev/fluttercommunity/workmanager/WorkmanagerPlugin.kt:49:80 Unresolved reference 'PluginRegistrantCallback'.
+
+FAILURE: Build completed with 2 failures.
+
+1: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':isar_flutter_libs:processReleaseManifest'.
+> A failure occurred while executing com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction
+   > Incorrect package="dev.isar.isar_flutter_libs" found in source AndroidManifest.xml: /Users/fi2ber/.pub-cache/hosted/pub.dev/isar_flutter_libs-3.1.0+1/android/src/main/AndroidManifest.xml.
+     Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
+     Recommendation: remove package="dev.isar.isar_flutter_libs" from the source AndroidManifest.xml: /Users/fi2ber/.pub-cache/hosted/pub.dev/isar_flutter_libs-3.1.0+1/android/src/main/AndroidManifest.xml.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+2: Task failed with an exception.
+-----------
+* What went wrong:
+Execution failed for task ':workmanager:compileReleaseKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+BUILD FAILED in 1m 26s
+Running Gradle task 'assembleRelease'...                           86,5s
+Gradle task assembleRelease failed with exit code 1

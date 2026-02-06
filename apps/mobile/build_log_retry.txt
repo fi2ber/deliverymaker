@@ -1,0 +1,19 @@
+Running Gradle task 'assembleRelease'...                        
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file '/Users/fi2ber/Project/DeliveryMaker/apps/mobile/android/build.gradle.kts' line: 21
+
+* What went wrong:
+Cannot run Project.afterEvaluate(Action) when the project is already evaluated.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1s
+Running Gradle task 'assembleRelease'...                         1 685ms
+Gradle task assembleRelease failed with exit code 1

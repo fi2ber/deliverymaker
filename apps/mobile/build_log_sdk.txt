@@ -1,0 +1,52 @@
+Running Gradle task 'assembleRelease'...                        
+Warning: The plugin flutter_secure_storage requires Android SDK version 36 or higher.
+For more information about build configuration, see https://flutter.dev/to/review-gradle-config.
+Injected namespace 'com.deliverymaker.generated.isar_flutter_libs' for project isar_flutter_libs
+Warning: The plugin path_provider_android requires Android SDK version 36 or higher.
+For more information about build configuration, see https://flutter.dev/to/review-gradle-config.
+Warning: The plugin workmanager_android requires Android SDK version 35 or higher.
+For more information about build configuration, see https://flutter.dev/to/review-gradle-config.
+Your project is configured to compile against Android SDK 34, but the following plugin(s) require to be compiled against a higher Android SDK version:
+- flutter_secure_storage compiles against Android SDK 36
+- path_provider_android compiles against Android SDK 36
+- workmanager_android compiles against Android SDK 35
+Fix this issue by compiling against the highest Android SDK version (they are backward compatible).
+Add the following to /Users/fi2ber/Project/DeliveryMaker/apps/mobile/android/app/build.gradle.kts:
+
+    android {
+        compileSdk = 36
+        ...
+    }
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 4856 bytes (99.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:checkReleaseAarMetadata'.
+> A failure occurred while executing com.android.build.gradle.internal.tasks.CheckAarMetadataWorkAction
+   > An issue was found when checking AAR metadata:
+
+       1.  Dependency 'androidx.work:work-runtime:2.10.2' requires libraries and applications that
+           depend on it to compile against version 35 or later of the
+           Android APIs.
+
+           :app is currently compiled against android-34.
+
+           Recommended action: Update this project to use a newer compileSdk
+           of at least 35, for example 36.
+
+           Note that updating a library or application's compileSdk (which
+           allows newer APIs to be used) can be done separately from updating
+           targetSdk (which opts the app in to new runtime behavior) and
+           minSdk (which determines which devices the app can be installed
+           on).
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 8s
+Running Gradle task 'assembleRelease'...                            8,6s
+Gradle task assembleRelease failed with exit code 1

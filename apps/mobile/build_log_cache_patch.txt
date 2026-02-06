@@ -1,0 +1,25 @@
+Running Gradle task 'assembleRelease'...                        
+Injected namespace 'com.deliverymaker.generated.isar_flutter_libs' for project isar_flutter_libs
+lib/services/background_sync_service.dart:69:46: Error: The argument type 'ExistingWorkPolicy' can't be assigned to the parameter type 'ExistingPeriodicWorkPolicy?'.
+ - 'ExistingWorkPolicy' is from 'package:workmanager_platform_interface/src/pigeon/workmanager_api.g.dart' ('../../../../.pub-cache/hosted/pub.dev/workmanager_platform_interface-0.9.1+1/lib/src/pigeon/workmanager_api.g.dart').
+ - 'ExistingPeriodicWorkPolicy' is from 'package:workmanager_platform_interface/src/pigeon/workmanager_api.g.dart' ('../../../../.pub-cache/hosted/pub.dev/workmanager_platform_interface-0.9.1+1/lib/src/pigeon/workmanager_api.g.dart').
+      existingWorkPolicy: ExistingWorkPolicy.replace,
+                                             ^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildRelease'.
+> Process 'command '/Users/fi2ber/Flutter/flutter/bin/flutter'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 14s
+Running Gradle task 'assembleRelease'...                           14,8s
+Gradle task assembleRelease failed with exit code 1
