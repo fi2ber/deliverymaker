@@ -41,4 +41,16 @@ export class OrdersController {
     async getDebt(@Param('clientId') clientId: string) {
         return { debt: await this.ordersService.getDebt(clientId) };
     }
+
+    @Get('my')
+    @ApiOperation({ summary: 'Get my orders' })
+    async getMyOrders(@CurrentUser() user: any) {
+        return this.ordersService.findByClient(user.id);
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Get order by ID' })
+    async getOrderById(@Param('id') id: string) {
+        return this.ordersService.findById(id);
+    }
 }

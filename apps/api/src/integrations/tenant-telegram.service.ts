@@ -214,6 +214,83 @@ export class TenantTelegramService {
         return response.data;
     }
 
+    // ============ CALLBACK QUERIES ============
+
+    async answerCallbackQuery(
+        tenantId: string,
+        callbackQueryId: string,
+        options?: {
+            text?: string;
+            showAlert?: boolean;
+            url?: string;
+            cacheTime?: number;
+        },
+    ): Promise<any> {
+        const bot = await this.getActiveBot(tenantId);
+        
+        const url = `${this.apiBase}${bot.botToken}/answerCallbackQuery`;
+        const response = await axios.post(url, {
+            callback_query_id: callbackQueryId,
+            text: options?.text,
+            show_alert: options?.showAlert,
+            url: options?.url,
+            cache_time: options?.cacheTime,
+        });
+
+        return response.data;
+    }
+
+    // ============ PRE-CHECKOUT QUERIES ============
+
+    async answerPreCheckoutQuery(
+        tenantId: string,
+        preCheckoutQueryId: string,
+        ok: boolean,
+        errorMessage?: string,
+    ): Promise<any> {
+        const bot = await this.getActiveBot(tenantId);
+        
+        const url = `${this.apiBase}${bot.botToken}/answerPreCheckoutQuery`;
+        const response = await axios.post(url, {
+            pre_checkout_query_id: preCheckoutQueryId,
+            ok,
+            error_message: errorMessage,
+        });
+
+        return response.data;
+    }
+
+    // ============ EDIT MESSAGES ============
+
+    async editMessageText(
+        tenantId: string,
+        chatId: string | number,
+        messageId: number,
+        text: string,
+        options?: {
+            parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
+            replyMarkup?: any;
+        },
+    ): Promise<any> {
+        const bot = await this.getActiveBot(tenantId);
+        
+        try {
+            const url = `${this.apiBase}${bot.botToken}/editMessageText`;
+            const response = await axios.post(url, {
+                chat_id: chatId,
+                message_id: messageId,
+                text,
+                parse_mode: options?.parseMode,
+                reply_markup: options?.replyMarkup,
+            });
+
+            return response.data;
+        } catch (error) {
+            await this.logError(tenantId, error);
+            throw error;
+        }
+    }
+
     // ============ PRIVATE HELPERS ============
 
     private async validateToken(token: string): Promise<any> {

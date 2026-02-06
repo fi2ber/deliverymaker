@@ -191,4 +191,19 @@ export class OrdersService {
     async findAll(): Promise<Order[]> {
         return this.orderRepo.find({ relations: ['items', 'items.allocations', 'items.allocations.batch', 'client'] });
     }
+
+    async findByClient(clientId: string): Promise<Order[]> {
+        return this.orderRepo.find({
+            where: { client: { id: clientId } },
+            relations: ['items', 'items.product'],
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    async findById(id: string): Promise<Order | null> {
+        return this.orderRepo.findOne({
+            where: { id },
+            relations: ['items', 'items.product', 'client', 'warehouse'],
+        });
+    }
 }
