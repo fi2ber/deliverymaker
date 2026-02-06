@@ -6,6 +6,7 @@ import { Product } from '../product.entity';
 import { Category } from '../category.entity';
 import { ProductAIService } from '../product-ai.service';
 import { NotFoundException } from '@nestjs/common';
+import { ProductType, UnitOfMeasure } from '../product-types';
 
 describe('ProductsService', () => {
     let service: ProductsService;
@@ -17,7 +18,11 @@ describe('ProductsService', () => {
     const mockCategory: Category = {
         id: 'category-1',
         name: 'Напитки',
-        description: null,
+        image: null,
+        children: [],
+        parent: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
     };
 
     const mockProduct: Product = {
@@ -25,10 +30,13 @@ describe('ProductsService', () => {
         name: 'Test Product',
         sku: 'BEV-TEST-0001',
         description: 'Test description',
+        image: null,
+        images: [],
+        category: mockCategory,
         categoryId: 'category-1',
         basePrice: 100,
-        productType: 'GOODS',
-        unit: 'PCS',
+        productType: ProductType.PIECES,
+        unit: UnitOfMeasure.PCS,
         attributes: {
             shelfLifeDays: 365,
             weightKg: 1.5,
@@ -167,6 +175,9 @@ describe('ProductsService', () => {
                 sku: 'CUSTOM-SKU-001',
                 categoryId: 'category-1',
                 basePrice: 150,
+                productType: ProductType.PIECES,
+                unit: UnitOfMeasure.PCS,
+                attributes: { shelfLifeDays: 365, barcodes: {} },
             };
 
             productsRepository.create.mockReturnValue({ ...createDto, id: 'new-id' } as any);
@@ -183,6 +194,9 @@ describe('ProductsService', () => {
                 name: 'Новый Продукт',
                 categoryId: 'category-1',
                 basePrice: 150,
+                productType: ProductType.PIECES,
+                unit: UnitOfMeasure.PCS,
+                attributes: { shelfLifeDays: 365, barcodes: {} },
             };
 
             categoryRepository.findOne.mockResolvedValue(mockCategory);
@@ -203,8 +217,8 @@ describe('ProductsService', () => {
                 suggestedName: 'AI Generated Product',
                 suggestedCategory: 'Напитки',
                 description: 'AI generated description',
-                suggestedType: 'GOODS',
-                suggestedUnit: 'PCS',
+                suggestedType: ProductType.PIECES,
+                suggestedUnit: UnitOfMeasure.PCS,
                 estimatedShelfLifeDays: 365,
                 estimatedWeightKg: 1.0,
                 barcodes: { ean13: '1234567890123' },
@@ -223,8 +237,9 @@ describe('ProductsService', () => {
                 margin: 20,
             });
             aiService.validateForUzbekistan.mockReturnValue({
-                isValid: true,
-                warnings: [],
+                valid: true,
+                issues: [],
+                requiredCertificates: [],
             });
 
             const result = await service.createWithAI({
@@ -243,8 +258,8 @@ describe('ProductsService', () => {
                 suggestedName: 'New Category Product',
                 suggestedCategory: 'New Category',
                 description: 'Description',
-                suggestedType: 'GOODS',
-                suggestedUnit: 'PCS',
+                suggestedType: ProductType.PIECES,
+                suggestedUnit: UnitOfMeasure.PCS,
                 estimatedShelfLifeDays: 30,
                 estimatedWeightKg: 0.5,
                 barcodes: {},
@@ -254,7 +269,15 @@ describe('ProductsService', () => {
 
             aiService.analyzeProduct.mockResolvedValue(aiAnalysis);
             categoryRepository.findOne.mockResolvedValue(null);
-            categoryRepository.save.mockResolvedValue({ id: 'new-cat-id', name: 'New Category' });
+            categoryRepository.save.mockResolvedValue({ 
+                id: 'new-cat-id', 
+                name: 'New Category',
+                image: null,
+                children: [],
+                parent: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
             dataSource.query.mockResolvedValue([{ count: '0' }]);
             productsRepository.save.mockImplementation(async (data) => ({ ...data, id: 'new-product' } as any));
             productsRepository.findOne.mockResolvedValue({ ...mockProduct, id: 'new-product' });
@@ -272,8 +295,8 @@ describe('ProductsService', () => {
                 suggestedName: 'Preview Product',
                 suggestedCategory: 'Напитки',
                 description: 'Preview description',
-                suggestedType: 'GOODS',
-                suggestedUnit: 'PCS',
+                suggestedType: ProductType.PIECES,
+                suggestedUnit: UnitOfMeasure.PCS,
                 estimatedShelfLifeDays: 180,
                 estimatedWeightKg: 1.0,
                 barcodes: {},
@@ -285,8 +308,9 @@ describe('ProductsService', () => {
             categoryRepository.findOne.mockResolvedValue(mockCategory);
             dataSource.query.mockResolvedValue([{ count: '10' }]);
             aiService.validateForUzbekistan.mockReturnValue({
-                isValid: true,
-                warnings: [],
+                valid: true,
+                issues: [],
+                requiredCertificates: [],
             });
 
             const result = await service.previewAIAnalysis({ text: 'Preview' });
@@ -300,12 +324,13 @@ describe('ProductsService', () => {
     describe('bulkCreate', () => {
         it('should create multiple products', async () => {
             const products = [
-                { name: 'Product 1', categoryId: 'cat-1', basePrice: 100 },
-                { name: 'Product 2', categoryId: 'cat-1', basePrice: 200 },
+                { name: 'Product 1', categoryId: 'cat-1', basePrice: 100, productType: ProductType.PIECES, unit: UnitOfMeasure.PCS, attributes: { shelfLifeDays: 365, barcodes: {} } },
+                { name: 'Product 2', categoryId: 'cat-1', basePrice: 200, productType: ProductType.PIECES, unit: UnitOfMeasure.PCS, attributes: { shelfLifeDays: 365, barcodes: {} } },
             ];
 
-            productsRepository.create.mockImplementation((data) => data as any);
-            productsRepository.save.mockImplementation(async (data) => ({ ...data, id: `id-${Math.random()}` } as any));
+            // Mock the create method directly on service
+            jest.spyOn(service, 'create').mockResolvedValueOnce({ id: 'prod-1' } as any)
+                .mockResolvedValueOnce({ id: 'prod-2' } as any);
 
             const result = await service.bulkCreate(products as any);
 
@@ -315,13 +340,13 @@ describe('ProductsService', () => {
 
         it('should collect errors for failed products', async () => {
             const products = [
-                { name: 'Product 1', categoryId: 'cat-1', basePrice: 100 },
-                { name: 'Product 2', categoryId: 'cat-1', basePrice: -50 }, // Invalid price
+                { name: 'Product 1', categoryId: 'cat-1', basePrice: 100, productType: ProductType.PIECES, unit: UnitOfMeasure.PCS, attributes: { shelfLifeDays: 365, barcodes: {} } },
+                { name: 'Product 2', categoryId: 'cat-1', basePrice: -50, productType: ProductType.PIECES, unit: UnitOfMeasure.PCS, attributes: { shelfLifeDays: 365, barcodes: {} } },
             ];
 
-            productsRepository.create.mockImplementation((data) => data as any);
-            productsRepository.save
-                .mockResolvedValueOnce({ id: 'id-1' } as any)
+            // First succeeds, second fails
+            jest.spyOn(service, 'create')
+                .mockResolvedValueOnce({ id: 'prod-1' } as any)
                 .mockRejectedValueOnce(new Error('Invalid price'));
 
             const result = await service.bulkCreate(products as any);

@@ -7,6 +7,7 @@ import { Stock } from '../stock.entity';
 import { Product } from '../../catalog/product.entity';
 import { TENANT_CONNECTION } from '../../database/database.module';
 import { BadRequestException } from '@nestjs/common';
+import { ProductType, UnitOfMeasure } from '../../catalog/product-types';
 
 describe('WarehouseService', () => {
     let service: WarehouseService;
@@ -23,6 +24,8 @@ describe('WarehouseService', () => {
         type: 'MAIN',
         driver: null,
         address: null,
+        latitude: null,
+        longitude: null,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -33,11 +36,17 @@ describe('WarehouseService', () => {
         name: 'Test Product',
         sku: 'TEST-001',
         description: null,
+        image: null,
+        images: [],
+        category: null,
         categoryId: 'category-1',
         basePrice: 100,
-        productType: 'GOODS',
-        unit: 'PCS',
-        attributes: {},
+        productType: ProductType.PIECES,
+        unit: UnitOfMeasure.PCS,
+        attributes: {
+            shelfLifeDays: 365,
+            barcodes: {},
+        },
         isActive: true,
         aiConfidence: null,
         aiKeywords: null,
@@ -52,7 +61,8 @@ describe('WarehouseService', () => {
         product: mockProduct,
         purchasePrice: 50,
         arrivalDate: new Date(),
-        expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
     };
 
     const mockStock: Stock = {
@@ -61,6 +71,8 @@ describe('WarehouseService', () => {
         product: mockProduct,
         batch: mockBatch,
         quantity: 100,
+        createdAt: new Date(),
+        updatedAt: new Date(),
     };
 
     beforeEach(async () => {
@@ -141,7 +153,7 @@ describe('WarehouseService', () => {
             mockWarehouseRepo.findOneBy.mockResolvedValue(mockWarehouse);
             mockProductRepo.findOneBy.mockResolvedValue(mockProduct);
             mockManager.create.mockImplementation((entity, data) => data as any);
-            mockManager.save.mockImplementation(async (entity, data) => ({
+            mockManager.save.mockImplementation(async (entity, data: any) => ({
                 id: 'new-batch-id',
                 ...data,
             }));
@@ -188,7 +200,7 @@ describe('WarehouseService', () => {
             mockWarehouseRepo.findOneBy.mockResolvedValue(mockWarehouse);
             mockProductRepo.findOneBy.mockResolvedValue(mockProduct);
             mockManager.create.mockImplementation((entity, data) => data as any);
-            mockManager.save.mockImplementation(async (entity, data) => ({
+            mockManager.save.mockImplementation(async (entity, data: any) => ({
                 id: 'new-batch-id',
                 ...data,
             }));
@@ -302,6 +314,7 @@ describe('WarehouseService', () => {
     describe('transferStock', () => {
         it('should transfer stock between warehouses', async () => {
             const targetWarehouse = { ...mockWarehouse, id: 'warehouse-2' };
+            const existingTargetStock = { ...mockStock, id: 'stock-2', quantity: 50 };
             
             mockManager.query.mockResolvedValue([{ value: '3' }]);
             mockManager.getRepository.mockReturnValue({
@@ -311,6 +324,8 @@ describe('WarehouseService', () => {
                 if (options.where.id === 'warehouse-2') return targetWarehouse;
                 if (options.where.id === 'product-1') return mockProduct;
                 if (options.where.id === 'batch-1') return mockBatch;
+                // Return existing stock for target warehouse
+                if (options.where?.warehouse?.id === 'warehouse-2') return existingTargetStock;
                 return null;
             });
             mockManager.save.mockResolvedValue({});

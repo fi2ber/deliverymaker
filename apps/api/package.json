@@ -10,7 +10,11 @@
         "start:debug": "nest start --debug --watch",
         "start:prod": "node dist/main",
         "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-        "tenant:create": "ts-node src/scripts/create-tenant.ts"
+        "tenant:create": "ts-node src/scripts/create-tenant.ts",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:cov": "jest --coverage",
+        "test:e2e": "jest --config ./test/jest-e2e.json"
     },
     "dependencies": {
         "@nestjs/common": "^10.0.0",
