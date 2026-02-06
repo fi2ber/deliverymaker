@@ -1,16 +1,19 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Subscription, SubscriptionStatus } from './subscription.entity';
+import { Subscription, SubscriptionStatus, PaymentProvider } from './subscription.entity';
 import { ComboProduct, ComboStatus, SubscriptionPeriod } from './combo-product.entity';
 import { CreateSubscriptionDto, CreateComboProductDto } from './dto/create-subscription.dto';
 import { TENANT_CONNECTION } from '../database/database.module';
 import { Inject } from '@nestjs/common';
+import { TenantTelegramService } from '../integrations/tenant-telegram.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class SubscriptionsService {
     constructor(
         @Inject(TENANT_CONNECTION) private dataSource: DataSource,
+        private readonly tenantTelegramService: TenantTelegramService,
+        private readonly configService: ConfigService,
     ) {}
 
     private get subscriptionRepo() { return this.dataSource.getRepository(Subscription); }
@@ -191,7 +194,83 @@ export class SubscriptionsService {
         return this.subscriptionRepo.save(subscription);
     }
 
+    // ============ TELEGRAM INTEGRATION ============
+
+    async sendInvoiceViaTelegram(tenantId: string, subscriptionId: string): Promise<void> {
+        const subscription = await this.findSubscriptionById(subscriptionId);
+        const bot = await this.tenantTelegramService.getBot(tenantId);
+        
+        if (!bot) {
+            throw new BadRequestException('Telegram bot not configured for this tenant');
+        }
+
+        const providerToken = bot.settings?.paymentProviderToken;
+        if (!providerToken) {
+            throw new BadRequestException('Payment provider token not configured');
+        }
+
+        const chatId = subscription.telegramData?.chatId;
+        if (!chatId) {
+            throw new BadRequestException('User Telegram chat ID not found');
+        }
+
+        // Отправляем инвойс через бота тенанта
+        await this.tenantTelegramService.sendInvoice(tenantId, {
+            chatId,
+            title: `Подписка "${subscription.comboProduct.name}"`,
+            description: `${subscription.totalDeliveries} доставок на ${this.getPeriodLabel(subscription.comboProduct.period)}`,
+            payload: JSON.stringify({
+                subscriptionId: subscription.id,
+                tenantId,
+                type: 'subscription',
+            }),
+            providerToken,
+            currency: 'UZS', // Узбекский сум
+            prices: [
+                { label: `Подписка (${subscription.totalDeliveries} доставок)`, amount: Math.round(subscription.totalAmount * 100) }, // в тийинах
+            ],
+            startParameter: `sub_${subscription.id.slice(0, 8)}`,
+        });
+    }
+
+    async notifySubscriptionCreated(tenantId: string, subscription: Subscription): Promise<void> {
+        try {
+            const chatId = subscription.telegramData?.chatId;
+            if (!chatId) return;
+
+            const message = `
+✅ <b>Подписка оформлена!</b>
+
+📦 ${subscription.comboProduct.name}
+💰 ${subscription.totalAmount.toLocaleString()} sum
+📅 ${subscription.totalDeliveries} доставок
+🚚 Следующая: ${subscription.nextDeliveryDate.toLocaleDateString('ru-RU')}
+
+Спасибо за заказ!
+            `.trim();
+
+            await this.tenantTelegramService.sendMessage(tenantId, {
+                chatId,
+                text: message,
+                parseMode: 'HTML',
+            });
+        } catch (error) {
+            // Не критично, если уведомление не отправилось
+            console.error('Failed to send notification:', error);
+        }
+    }
+
     // ============ HELPERS ============
+
+    private getPeriodLabel(period: SubscriptionPeriod): string {
+        const labels: Record<string, string> = {
+            WEEKLY: 'неделю',
+            MONTHLY: 'месяц',
+            QUARTERLY: '3 месяца',
+            YEARLY: 'год',
+        };
+        return labels[period] || period;
+    }
 
     private calculateDiscount(basePrice: number, subscriptionPrice: number): number {
         return Math.round(((basePrice - subscriptionPrice) / basePrice) * 100);
