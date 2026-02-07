@@ -1,40 +1,50 @@
-# Base Image
-FROM node:20-alpine AS builder
+# Build stage
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Enable corepack for pnpm/yarn if needed, but we use npm
-# Copy Root Configs
-COPY package.json package-lock.json turbo.json ./
+# Copy package files
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
 
-# Copy App Configs
-COPY apps/api/package.json ./apps/api/package.json
-# If there were shared packages: COPY packages ./packages
+# Install dependencies
+RUN npm ci
 
-# Install Dependencies
-RUN npm install
-
-# Copy Source Code
-COPY apps/api ./apps/api
+# Copy source
+COPY . .
 
 # Build
-RUN npm run build -w apps/api
+RUN npm run build
 
-# Production Runner
-FROM node:20-alpine AS runner
+# Production stage
+FROM node:18-alpine
 
 WORKDIR /app
-ENV NODE_ENV=production
 
-# Copy built assets and modules
-# Note: For strict optimization we should prune devDependencies but for MVP we keep simple
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
+# Copy package files
+COPY package*.json ./
 
-# Expose Port
+# Install production dependencies only
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
+
+# Change ownership
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+# Expose port
 EXPOSE 3000
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
 # Start
-CMD ["node", "apps/api/dist/main"]
+CMD ["node", "dist/main"]

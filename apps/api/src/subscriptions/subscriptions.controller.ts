@@ -1,141 +1,113 @@
-import { 
-    Controller, 
-    Get, 
-    Post, 
-    Put, 
-    Delete,
-    Body, 
-    Param, 
-    Query,
-    UseGuards,
-    Request,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
-import { CreateSubscriptionDto, CreateComboProductDto } from './dto/create-subscription.dto';
-import { JwtAuthGuard } from '../auth/jwt.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/user.entity';
+import { CreateSubscriptionDto, UpdateSubscriptionDto } from './dto';
+import { Subscription } from './subscription.entity';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
 export class SubscriptionsController {
     constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
-    // ============ COMBO PRODUCTS ============
-
-    @Get('combos')
-    @ApiOperation({ summary: 'Get all active combo products' })
-    async findAllCombos() {
-        return this.subscriptionsService.findAllCombos();
+    // Self-service endpoint for TMA
+    @Post('self-service')
+    @ApiOperation({ summary: 'Create subscription (self-service from TMA)' })
+    @ApiResponse({ status: 201, description: 'Subscription created successfully' })
+    async createSelfService(@Body() dto: {
+        comboProductId: string;
+        customerId: string;
+        deliveryAddress: {
+            address: string;
+            phone: string;
+            comment?: string;
+        };
+        paymentProvider: 'telegram' | 'click' | 'payme';
+        totalAmount: number;
+    }) {
+        const subscription = await this.subscriptionsService.createFromSelfService(dto);
+        return {
+            success: true,
+            data: subscription,
+        };
     }
 
-    @Get('combos/tma')
-    @ApiOperation({ summary: 'Get combos available in Telegram Mini App' })
-    async findCombosForTMA() {
-        return this.subscriptionsService.findCombosForTMA();
-    }
-
-    @Get('combos/:id')
-    @ApiOperation({ summary: 'Get combo product by ID' })
-    @ApiParam({ name: 'id', description: 'Combo product ID' })
-    async findComboById(@Param('id') id: string) {
-        return this.subscriptionsService.findComboById(id);
-    }
-
-    @Post('combos')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.SUPER_ADMIN, UserRole.DIRECTOR)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Create new combo product (Admin only)' })
-    async createCombo(@Body() dto: CreateComboProductDto) {
-        return this.subscriptionsService.createCombo(dto);
-    }
-
-    // ============ SUBSCRIPTIONS ============
-
-    @Post()
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Create new subscription' })
-    async createSubscription(
-        @Request() req,
-        @Body() dto: CreateSubscriptionDto,
-    ) {
-        const clientId = req.user.sub;
-        return this.subscriptionsService.createSubscription(clientId, dto);
-    }
-
+    // Get my subscriptions (for TMA)
     @Get('my')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Get my subscriptions' })
-    async findMySubscriptions(@Request() req) {
-        const clientId = req.user.sub;
-        return this.subscriptionsService.findSubscriptionsByClient(clientId);
+    @ApiOperation({ summary: 'Get customer subscriptions (for TMA)' })
+    async getMySubscriptions(@Query('customerId') customerId: string) {
+        if (!customerId) {
+            return {
+                success: false,
+                message: 'Customer ID required',
+            };
+        }
+
+        const subscriptions = await this.subscriptionsService.findByCustomer(customerId);
+        return {
+            success: true,
+            data: subscriptions,
+        };
     }
 
-    @Get('my/active')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Get my active subscriptions' })
-    async findMyActiveSubscriptions(@Request() req) {
-        const clientId = req.user.sub;
-        return this.subscriptionsService.findActiveSubscriptions(clientId);
+    // Get combos for TMA (public endpoint)
+    @Get('combos/tma')
+    @ApiOperation({ summary: 'Get combo products for TMA' })
+    async getCombosForTma() {
+        const combos = await this.subscriptionsService.getActiveCombos();
+        return {
+            success: true,
+            data: combos,
+        };
+    }
+
+    // Standard CRUD
+    @Get()
+    @ApiOperation({ summary: 'Get all subscriptions' })
+    async findAll(@Query('tenantId') tenantId?: string) {
+        const subscriptions = await this.subscriptionsService.findAll(tenantId);
+        return {
+            success: true,
+            data: subscriptions,
+        };
     }
 
     @Get(':id')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
     @ApiOperation({ summary: 'Get subscription by ID' })
-    async findSubscriptionById(@Param('id') id: string) {
-        return this.subscriptionsService.findSubscriptionById(id);
+    async findOne(@Param('id') id: string) {
+        const subscription = await this.subscriptionsService.findOne(id);
+        return {
+            success: true,
+            data: subscription,
+        };
     }
 
-    @Post(':id/activate')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Activate subscription after payment' })
-    async activateSubscription(
-        @Param('id') id: string,
-        @Body('paymentChargeId') paymentChargeId: string,
-    ) {
-        return this.subscriptionsService.activateSubscription(id, paymentChargeId);
+    @Post()
+    @ApiOperation({ summary: 'Create subscription (manager)' })
+    async create(@Body() dto: CreateSubscriptionDto) {
+        const subscription = await this.subscriptionsService.create(dto);
+        return {
+            success: true,
+            data: subscription,
+        };
     }
 
-    @Put(':id/pause')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Pause subscription' })
-    async pauseSubscription(@Param('id') id: string) {
-        return this.subscriptionsService.pauseSubscription(id);
-    }
-
-    @Put(':id/resume')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Resume subscription' })
-    async resumeSubscription(@Param('id') id: string) {
-        return this.subscriptionsService.resumeSubscription(id);
+    @Put(':id')
+    @ApiOperation({ summary: 'Update subscription' })
+    async update(@Param('id') id: string, @Body() dto: UpdateSubscriptionDto) {
+        const subscription = await this.subscriptionsService.update(id, dto);
+        return {
+            success: true,
+            data: subscription,
+        };
     }
 
     @Delete(':id')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Cancel subscription' })
-    async cancelSubscription(@Param('id') id: string) {
-        return this.subscriptionsService.cancelSubscription(id);
-    }
-
-    // ============ ADMIN ENDPOINTS ============
-
-    @Get(':id/deliver')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.SUPER_ADMIN, UserRole.DIRECTOR, UserRole.WAREHOUSE)
-    @ApiBearerAuth('JWT-auth')
-    @ApiOperation({ summary: 'Process delivery for subscription (Admin/Driver)' })
-    async processDelivery(@Param('id') id: string) {
-        return this.subscriptionsService.processDelivery(id);
+    @ApiOperation({ summary: 'Delete subscription' })
+    async remove(@Param('id') id: string) {
+        await this.subscriptionsService.remove(id);
+        return {
+            success: true,
+            message: 'Subscription deleted successfully',
+        };
     }
 }

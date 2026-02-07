@@ -1,17 +1,41 @@
-import { IsEnum, IsUUID, IsDateString, IsObject, IsOptional, IsString, IsNumber } from 'class-validator';
-import { PaymentProvider } from '../subscription.entity';
+import { IsString, IsOptional, IsNumber, IsEnum, IsObject } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { SubscriptionStatus, PaymentProvider, PaymentStatus } from '../subscription.entity';
 
 export class CreateSubscriptionDto {
-    @IsUUID()
+    @ApiProperty({ description: 'Customer ID' })
+    @IsString()
+    customerId: string;
+
+    @ApiPropertyOptional({ description: 'Client ID (legacy user relation)' })
+    @IsString()
+    @IsOptional()
+    clientId?: string;
+
+    @ApiProperty({ description: 'Combo product ID' })
+    @IsString()
     comboProductId: string;
 
-    @IsDateString()
-    startDate: string;
-
-    @IsEnum(PaymentProvider)
+    @ApiPropertyOptional({ description: 'Subscription status', enum: SubscriptionStatus })
+    @IsEnum(SubscriptionStatus)
     @IsOptional()
-    paymentProvider?: PaymentProvider = PaymentProvider.TELEGRAM;
+    status?: SubscriptionStatus;
 
+    @ApiPropertyOptional({ description: 'Payment status', enum: PaymentStatus })
+    @IsEnum(PaymentStatus)
+    @IsOptional()
+    paymentStatus?: PaymentStatus;
+
+    @ApiProperty({ description: 'Total amount' })
+    @IsNumber()
+    totalAmount: number;
+
+    @ApiPropertyOptional({ description: 'Price per delivery' })
+    @IsNumber()
+    @IsOptional()
+    pricePerDelivery?: number;
+
+    @ApiPropertyOptional({ description: 'Delivery address' })
     @IsObject()
     @IsOptional()
     deliveryAddress?: {
@@ -22,68 +46,13 @@ export class CreateSubscriptionDto {
         comment?: string;
     };
 
-    @IsObject()
+    @ApiPropertyOptional({ description: 'Payment provider', enum: PaymentProvider })
+    @IsEnum(PaymentProvider)
     @IsOptional()
-    deliverySchedule?: {
-        preferredTimeStart?: string;
-        preferredTimeEnd?: string;
-        weekdaysOnly?: boolean;
-    };
+    paymentProvider?: PaymentProvider;
 
-    @IsObject()
-    @IsOptional()
-    telegramData?: {
-        chatId: string;
-        username?: string;
-    };
-}
-
-export class CreateComboProductDto {
-    @IsString()
-    name: string;
-
+    @ApiPropertyOptional({ description: 'Tenant ID' })
     @IsString()
     @IsOptional()
-    description?: string;
-
-    @IsString()
-    image: string;
-
-    @IsObject({ each: true })
-    items: {
-        productId: string;
-        name: string;
-        quantity: number;
-        unit: string;
-        image?: string;
-    }[];
-
-    @IsString()
-    period: string;
-
-    @IsNumber()
-    basePrice: number;
-
-    @IsNumber()
-    subscriptionPrice: number;
-
-    @IsNumber()
-    @IsOptional()
-    discountPercent?: number;
-
-    @IsNumber()
-    @IsOptional()
-    totalDeliveries?: number;
-
-    @IsNumber()
-    @IsOptional()
-    deliveryFrequencyDays?: number;
-
-    @IsObject()
-    @IsOptional()
-    telegramSettings?: {
-        buttonText: string;
-        descriptionShort: string;
-        emoji: string;
-    };
+    tenantId?: string;
 }

@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../users/user.entity';
 import { ComboProduct } from './combo-product.entity';
+import { Customer } from '../customers/entities/customer.entity';
 
 export enum SubscriptionStatus {
     PENDING = 'PENDING',           // Ожидает первой оплаты
@@ -15,6 +16,14 @@ export enum PaymentProvider {
     CLICK = 'CLICK',               // Click Uzbekistan
     PAYME = 'PAYME',               // Payme
     CASH = 'CASH',                 // Наличные при доставке
+    UZUM = 'UZUM',                 // Uzum Bank
+}
+
+export enum PaymentStatus {
+    PENDING = 'pending',
+    PAID = 'paid',
+    FAILED = 'failed',
+    REFUNDED = 'refunded',
 }
 
 @Entity('subscriptions')
@@ -22,30 +31,51 @@ export class Subscription {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ unique: true })
+    @Column({ name: 'tenant_id' })
+    tenantId: string;
+
+    @Column({ unique: true, nullable: true })
     orderCode: string; // Для клиента (например, "SUB-1001")
 
-    @ManyToOne(() => User)
-    @JoinColumn({ name: 'clientId' })
-    client: User;
+    // Legacy: связь с User (для обратной совместимости)
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'client_id' })
+    client?: User;
 
-    @Column()
-    clientId: string;
+    @Column({ name: 'client_id', nullable: true })
+    clientId?: string;
+
+    // New: связь с Customer (self-service)
+    @ManyToOne(() => Customer, { nullable: true })
+    @JoinColumn({ name: 'customer_id' })
+    customer?: Customer;
+
+    @Column({ name: 'customer_id', nullable: true })
+    customerId?: string;
 
     @ManyToOne(() => ComboProduct)
-    @JoinColumn({ name: 'comboProductId' })
+    @JoinColumn({ name: 'combo_product_id' })
     comboProduct: ComboProduct;
 
-    @Column()
+    @Column({ name: 'combo_product_id' })
     comboProductId: string;
 
     @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.PENDING })
     status: SubscriptionStatus;
 
-    @Column({ type: 'date' })
+    @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })
+    paymentStatus: PaymentStatus;
+
+    @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+    paidAmount: number;
+
+    @Column({ type: 'timestamp', nullable: true })
+    paidAt: Date;
+
+    @Column({ type: 'date', nullable: true })
     startDate: Date; // Дата начала подписки
 
-    @Column({ type: 'date' })
+    @Column({ type: 'date', nullable: true })
     endDate: Date; // Дата окончания подписки
 
     @Column({ type: 'date', nullable: true })
@@ -92,9 +122,9 @@ export class Subscription {
         invoiceMessageId?: number;
     };
 
-    @CreateDateColumn()
+    @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 
-    @UpdateDateColumn()
+    @UpdateDateColumn({ name: 'updated_at' })
     updatedAt: Date;
 }

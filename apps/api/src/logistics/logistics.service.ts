@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Route, RouteStatus } from './route.entity';
@@ -10,6 +10,8 @@ import { YandexService } from '../integrations/yandex.service';
 
 @Injectable()
 export class LogisticsService {
+    private readonly logger = new Logger(LogisticsService.name);
+
     constructor(
         @InjectRepository(Route)
         private routeRepo: Repository<Route>,
@@ -41,25 +43,25 @@ export class LogisticsService {
         if (invalidOrders.length > 0) throw new BadRequestException(`Start orders are not CONFIRMED: ${invalidOrders.map(o => o.id)}`);
 
         // Optimize Route Sequence (Yandex)
-        // Assuming Route has a warehouse... wait, Route is linked to Driver, but where does it start?
-        // Let's assume Driver starts at a default Warehouse or the Warehouse of the first order?
-        // For specific logistics, we usually define a starting point.
-        // Let's assume the first order's warehouse is the start for now.
-        const startWarehouse = orders[0].warehouse;
+        // Use delivery addresses for routing
         let optimizedOrderIds = orderIds;
 
-        if (startWarehouse && startWarehouse.latitude && startWarehouse.longitude) {
-            const stopsData = orders
-                .filter(o => o.location && o.location.lat && o.location.lng)
-                .map(o => ({ id: o.id, lat: o.location.lat, lng: o.location.lng }));
+        const stopsData = orders
+            .filter(o => o.deliveryAddress?.lat && o.deliveryAddress?.lng)
+            .map(o => ({ id: o.id, lat: o.deliveryAddress!.lat!, lng: o.deliveryAddress!.lng! }));
 
-            if (stopsData.length > 0) {
+        if (stopsData.length > 1) {
+            // Use first stop as starting point for optimization
+            const startPoint = stopsData[0];
+            const otherStops = stopsData.slice(1);
+            
+            try {
                 optimizedOrderIds = await this.yandexService.optimizeRoute(
-                    { lat: Number(startWarehouse.latitude), lng: Number(startWarehouse.longitude) },
-                    stopsData
+                    { lat: startPoint.lat, lng: startPoint.lng },
+                    otherStops
                 );
-                // Re-add orders that didn't have location (append to end)??
-                // For now, let's just use the optimized list which contains IDs.
+            } catch (error) {
+                this.logger.warn('Route optimization failed, using original order');
             }
         }
 

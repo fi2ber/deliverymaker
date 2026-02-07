@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: deliverymaker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-deliverymaker}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-deliverymaker}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-deliverymaker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - deliverymaker-network
+
+  # Redis (for caching and sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: deliverymaker-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - deliverymaker-network
+
+  # OSRM - Open Source Routing Machine
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: deliverymaker-osrm
+    restart: unless-stopped
+    volumes:
+      - osrm_data:/data
+    ports:
+      - "5000:5000"
+    command: >
+      bash -c "
+        if [ ! -f /data/uzbekistan-latest.osrm ]; then
+          echo 'Downloading Uzbekistan map data...' &&
+          wget -q -O /data/uzbekistan-latest.osm.pbf https://download.geofabrik.de/asia/uzbekistan-latest.osm.pbf &&
+          echo 'Processing map data...' &&
+          osrm-extract -p /opt/car.lua /data/uzbekistan-latest.osm.pbf &&
+          osrm-partition /data/uzbekistan-latest.osrm &&
+          osrm-customize /data/uzbekistan-latest.osrm &&
+          rm /data/uzbekistan-latest.osm.pbf
+        fi &&
+        echo 'Starting OSRM server...' &&
+        osrm-routed --algorithm mld --bind 0.0.0.0 /data/uzbekistan-latest.osrm
+      "
+    networks:
+      - deliverymaker-network
+
+  # NestJS API Backend
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    container_name: deliverymaker-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USER:-deliverymaker}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_DATABASE: ${DB_NAME:-deliverymaker}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      FCM_SERVER_KEY: ${FCM_SERVER_KEY}
+      OSRM_URL: http://osrm:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      osrm:
+        condition: service_started
+    networks:
+      - deliverymaker-network
+
+  # Next.js Web Admin
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: deliverymaker-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:3000}
+    ports:
+      - "3001:3000"
+    depends_on:
+      - api
+    networks:
+      - deliverymaker-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: deliverymaker-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_data:/etc/letsencrypt
+    depends_on:
+      - api
+      - web
+    networks:
+      - deliverymaker-network
+
+  # Certbot for SSL
+  certbot:
+    image: certbot/certbot
+    container_name: deliverymaker-certbot
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - ./nginx/ssl:/etc/nginx/ssl
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - deliverymaker-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  osrm_data:
+  certbot_data:
+
+networks:
+  deliverymaker-network:
+    driver: bridge

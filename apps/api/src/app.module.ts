@@ -15,6 +15,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { CustomersModule } from './customers/customers.module';
+import { TelegramModule } from './integrations/telegram/telegram.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -42,6 +44,8 @@ import { ScheduleModule } from '@nestjs/schedule';
         NotificationsModule,
         AnalyticsModule,
         SubscriptionsModule,
+        CustomersModule,
+        TelegramModule,
         ScheduleModule.forRoot(),
         AiModule,
     ],

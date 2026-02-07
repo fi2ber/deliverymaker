@@ -63,12 +63,28 @@ export class ComboProduct {
     @Column({ type: 'int', default: 1 })
     deliveryFrequencyDays: number; // Частота доставки в днях
 
+    // TMA compatibility fields
+    @Column({ type: 'int', default: 1 })
+    durationWeeks: number; // Длительность подписки в неделях
+
+    @Column({ type: 'int', default: 1 })
+    deliveriesPerWeek: number; // Количество доставок в неделю
+
+    @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+    totalPrice: number; // Общая цена подписки
+
+    @Column({ default: true })
+    isActive: boolean; // Доступна для заказа
+
     @Column({ type: 'simple-json', nullable: true })
     telegramSettings?: {
         buttonText: string;
         descriptionShort: string;
         emoji: string;
     };
+
+    @Column({ type: 'simple-json', nullable: true })
+    products?: { productId: string; quantity: number }[]; // Simplified product list for TMA
 
     @CreateDateColumn()
     createdAt: Date;

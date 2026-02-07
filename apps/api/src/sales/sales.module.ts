@@ -4,6 +4,8 @@ import { Order } from './order.entity';
 import { OrderItem } from './order-item.entity';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { WarehouseOrdersController } from '../warehouse/warehouse-orders.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 import { OrderItemAllocation } from './order-item-allocation.entity';
 
@@ -12,9 +14,11 @@ import { WarehouseModule } from '../warehouse/warehouse.module';
 @Module({
     imports: [
         TypeOrmModule.forFeature([Order, OrderItem, OrderItemAllocation]),
-        WarehouseModule // Import to use exported WarehouseService
+        WarehouseModule,
+        NotificationsModule,
     ],
-    controllers: [OrdersController],
+    controllers: [OrdersController, WarehouseOrdersController],
     providers: [OrdersService],
+    exports: [OrdersService],
 })
 export class SalesModule { }

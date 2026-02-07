@@ -1,305 +1,160 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { Repository, DataSource } from 'typeorm';
-import { Subscription, SubscriptionStatus, PaymentProvider } from './subscription.entity';
-import { ComboProduct, ComboStatus, SubscriptionPeriod } from './combo-product.entity';
-import { CreateSubscriptionDto, CreateComboProductDto } from './dto/create-subscription.dto';
-import { TENANT_CONNECTION } from '../database/database.module';
-import { Inject } from '@nestjs/common';
-import { TenantTelegramService } from '../integrations/tenant-telegram.service';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Subscription, SubscriptionStatus, PaymentProvider, PaymentStatus } from './subscription.entity';
+import { ComboProduct } from './combo-product.entity';
+import { CreateSubscriptionDto, UpdateSubscriptionDto } from './dto';
 
 @Injectable()
 export class SubscriptionsService {
     constructor(
-        @Inject(TENANT_CONNECTION) private dataSource: DataSource,
-        private readonly tenantTelegramService: TenantTelegramService,
-        private readonly configService: ConfigService,
+        @InjectRepository(Subscription)
+        private subscriptionRepository: Repository<Subscription>,
+        @InjectRepository(ComboProduct)
+        private comboRepository: Repository<ComboProduct>,
     ) {}
 
-    private get subscriptionRepo() { return this.dataSource.getRepository(Subscription); }
-    private get comboRepo() { return this.dataSource.getRepository(ComboProduct); }
-
-    // ============ COMBO PRODUCTS ============
-
-    async findAllCombos(): Promise<ComboProduct[]> {
-        return this.comboRepo.find({
-            where: { status: ComboStatus.ACTIVE },
-            order: { subscriptionPrice: 'ASC' },
+    // Self-service creation from TMA
+    async createFromSelfService(dto: {
+        comboProductId: string;
+        customerId: string;
+        deliveryAddress: {
+            address: string;
+            phone: string;
+            comment?: string;
+        };
+        paymentProvider: 'telegram' | 'click' | 'payme';
+        totalAmount: number;
+    }): Promise<Subscription> {
+        // Get combo for details
+        const combo = await this.comboRepository.findOne({
+            where: { id: dto.comboProductId },
         });
-    }
 
-    async findCombosForTMA(): Promise<ComboProduct[]> {
-        return this.comboRepo.find({
-            where: { 
-                status: ComboStatus.ACTIVE,
-                isAvailableForTMA: true,
-            },
-            order: { subscriptionPrice: 'ASC' },
-        });
-    }
-
-    async findComboById(id: string): Promise<ComboProduct> {
-        const combo = await this.comboRepo.findOne({ where: { id } });
         if (!combo) {
             throw new NotFoundException('Combo product not found');
         }
-        return combo;
-    }
 
-    async createCombo(dto: CreateComboProductDto): Promise<ComboProduct> {
-        const combo = this.comboRepo.create({
-            ...dto,
-            status: ComboStatus.ACTIVE,
-            discountPercent: dto.discountPercent || this.calculateDiscount(dto.basePrice, dto.subscriptionPrice),
-        });
-        return this.comboRepo.save(combo);
-    }
-
-    // ============ SUBSCRIPTIONS ============
-
-    async createSubscription(clientId: string, dto: CreateSubscriptionDto): Promise<Subscription> {
-        const combo = await this.findComboById(dto.comboProductId);
-        
-        if (combo.status !== ComboStatus.ACTIVE) {
-            throw new BadRequestException('This combo is not available for subscription');
-        }
-
-        // Рассчитываем даты
-        const startDate = new Date(dto.startDate);
-        const endDate = this.calculateEndDate(startDate, combo.period);
-        
-        // Генерируем код заказа
+        // Generate order code
         const orderCode = await this.generateOrderCode();
 
-        const subscription = this.subscriptionRepo.create({
+        // Create subscription
+        const subscription = this.subscriptionRepository.create({
             orderCode,
-            clientId,
-            comboProductId: combo.id,
+            customerId: dto.customerId,
+            comboProductId: dto.comboProductId,
             comboProduct: combo,
             status: SubscriptionStatus.PENDING,
-            startDate,
-            endDate,
-            nextDeliveryDate: startDate,
+            paymentStatus: PaymentStatus.PENDING,
+            totalAmount: dto.totalAmount,
+            pricePerDelivery: dto.totalAmount / combo.durationWeeks / combo.deliveriesPerWeek,
+            totalDeliveries: combo.durationWeeks * combo.deliveriesPerWeek,
             deliveriesCompleted: 0,
-            totalDeliveries: combo.totalDeliveries,
-            pricePerDelivery: combo.subscriptionPrice / combo.totalDeliveries,
-            totalAmount: combo.subscriptionPrice,
-            paymentProvider: dto.paymentProvider,
             deliveryAddress: dto.deliveryAddress,
-            deliverySchedule: dto.deliverySchedule,
-            telegramData: dto.telegramData,
+            paymentProvider: dto.paymentProvider.toUpperCase() as PaymentProvider,
         });
 
-        return this.subscriptionRepo.save(subscription);
+        return this.subscriptionRepository.save(subscription);
     }
 
-    async findSubscriptionsByClient(clientId: string): Promise<Subscription[]> {
-        return this.subscriptionRepo.find({
-            where: { clientId },
+    // Standard CRUD
+    async create(dto: CreateSubscriptionDto): Promise<Subscription> {
+        const orderCode = await this.generateOrderCode();
+        
+        const subscription = this.subscriptionRepository.create({
+            ...dto,
+            orderCode,
+        });
+        
+        return this.subscriptionRepository.save(subscription);
+    }
+
+    async findAll(tenantId?: string): Promise<Subscription[]> {
+        const where = tenantId ? { tenantId } : {};
+        return this.subscriptionRepository.find({
+            where,
+            relations: ['customer', 'client', 'comboProduct'],
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    async findOne(id: string): Promise<Subscription> {
+        const subscription = await this.subscriptionRepository.findOne({
+            where: { id },
+            relations: ['customer', 'client', 'comboProduct'],
+        });
+        
+        if (!subscription) {
+            throw new NotFoundException(`Subscription with ID ${id} not found`);
+        }
+        
+        return subscription;
+    }
+
+    async findByCustomer(customerId: string): Promise<Subscription[]> {
+        return this.subscriptionRepository.find({
+            where: { customerId },
             relations: ['comboProduct'],
             order: { createdAt: 'DESC' },
         });
     }
 
-    async findActiveSubscriptions(clientId: string): Promise<Subscription[]> {
-        return this.subscriptionRepo.find({
-            where: { 
-                clientId,
-                status: SubscriptionStatus.ACTIVE,
-            },
-            relations: ['comboProduct'],
-            order: { nextDeliveryDate: 'ASC' },
+    async update(id: string, dto: UpdateSubscriptionDto): Promise<Subscription> {
+        const subscription = await this.findOne(id);
+        Object.assign(subscription, dto);
+        return this.subscriptionRepository.save(subscription);
+    }
+
+    async remove(id: string): Promise<void> {
+        const subscription = await this.findOne(id);
+        await this.subscriptionRepository.remove(subscription);
+    }
+
+    // Get active combos for TMA
+    async getActiveCombos(): Promise<ComboProduct[]> {
+        return this.comboRepository.find({
+            where: { isActive: true },
+            order: { createdAt: 'DESC' },
         });
     }
 
-    async findSubscriptionById(id: string): Promise<Subscription> {
-        const subscription = await this.subscriptionRepo.findOne({
-            where: { id },
-            relations: ['comboProduct', 'client'],
-        });
-        if (!subscription) {
-            throw new NotFoundException('Subscription not found');
-        }
-        return subscription;
-    }
-
-    async activateSubscription(id: string, paymentChargeId: string): Promise<Subscription> {
-        const subscription = await this.findSubscriptionById(id);
+    // Payment confirmation
+    async confirmPayment(subscriptionId: string, paymentData: {
+        amount: number;
+        provider: PaymentProvider;
+        telegramPaymentChargeId?: string;
+    }): Promise<Subscription> {
+        const subscription = await this.findOne(subscriptionId);
         
-        if (subscription.status !== SubscriptionStatus.PENDING) {
-            throw new BadRequestException('Subscription is not in pending status');
-        }
-
-        subscription.status = SubscriptionStatus.ACTIVE;
-        subscription.telegramPaymentChargeId = paymentChargeId;
+        subscription.paidAmount = paymentData.amount;
+        subscription.paidAt = new Date();
+        subscription.paymentStatus = PaymentStatus.PAID;
+        subscription.paymentProvider = paymentData.provider;
         
-        return this.subscriptionRepo.save(subscription);
-    }
-
-    async pauseSubscription(id: string): Promise<Subscription> {
-        const subscription = await this.findSubscriptionById(id);
-        
-        if (subscription.status !== SubscriptionStatus.ACTIVE) {
-            throw new BadRequestException('Only active subscriptions can be paused');
+        if (paymentData.telegramPaymentChargeId) {
+            subscription.telegramPaymentChargeId = paymentData.telegramPaymentChargeId;
         }
 
-        subscription.status = SubscriptionStatus.PAUSED;
-        return this.subscriptionRepo.save(subscription);
-    }
-
-    async resumeSubscription(id: string): Promise<Subscription> {
-        const subscription = await this.findSubscriptionById(id);
-        
-        if (subscription.status !== SubscriptionStatus.PAUSED) {
-            throw new BadRequestException('Only paused subscriptions can be resumed');
+        // Activate subscription after payment
+        if (subscription.status === SubscriptionStatus.PENDING) {
+            subscription.status = SubscriptionStatus.ACTIVE;
+            subscription.startDate = new Date();
+            // Calculate end date based on duration
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + (subscription.comboProduct?.durationWeeks || 1) * 7);
+            subscription.endDate = endDate;
+            subscription.nextDeliveryDate = new Date();
         }
 
-        subscription.status = SubscriptionStatus.ACTIVE;
-        return this.subscriptionRepo.save(subscription);
+        return this.subscriptionRepository.save(subscription);
     }
 
-    async cancelSubscription(id: string): Promise<Subscription> {
-        const subscription = await this.findSubscriptionById(id);
-        
-        if (subscription.status === SubscriptionStatus.CANCELLED || 
-            subscription.status === SubscriptionStatus.EXPIRED) {
-            throw new BadRequestException('Subscription is already cancelled or expired');
-        }
-
-        subscription.status = SubscriptionStatus.CANCELLED;
-        return this.subscriptionRepo.save(subscription);
-    }
-
-    // Обработка доставки (вызывается при каждой доставке)
-    async processDelivery(subscriptionId: string): Promise<Subscription> {
-        const subscription = await this.findSubscriptionById(subscriptionId);
-        
-        if (subscription.status !== SubscriptionStatus.ACTIVE) {
-            throw new BadRequestException('Subscription is not active');
-        }
-
-        subscription.deliveriesCompleted++;
-        
-        // Обновляем дату следующей доставки
-        if (subscription.deliveriesCompleted < subscription.totalDeliveries) {
-            const nextDate = new Date(subscription.nextDeliveryDate);
-            nextDate.setDate(nextDate.getDate() + subscription.comboProduct.deliveryFrequencyDays);
-            subscription.nextDeliveryDate = nextDate;
-        } else {
-            // Все доставки выполнены
-            subscription.status = SubscriptionStatus.EXPIRED;
-            subscription.nextDeliveryDate = null;
-        }
-
-        return this.subscriptionRepo.save(subscription);
-    }
-
-    // ============ TELEGRAM INTEGRATION ============
-
-    async sendInvoiceViaTelegram(tenantId: string, subscriptionId: string): Promise<void> {
-        const subscription = await this.findSubscriptionById(subscriptionId);
-        const bot = await this.tenantTelegramService.getBot(tenantId);
-        
-        if (!bot) {
-            throw new BadRequestException('Telegram bot not configured for this tenant');
-        }
-
-        const providerToken = bot.settings?.paymentProviderToken;
-        if (!providerToken) {
-            throw new BadRequestException('Payment provider token not configured');
-        }
-
-        const chatId = subscription.telegramData?.chatId;
-        if (!chatId) {
-            throw new BadRequestException('User Telegram chat ID not found');
-        }
-
-        // Отправляем инвойс через бота тенанта
-        await this.tenantTelegramService.sendInvoice(tenantId, {
-            chatId,
-            title: `Подписка "${subscription.comboProduct.name}"`,
-            description: `${subscription.totalDeliveries} доставок на ${this.getPeriodLabel(subscription.comboProduct.period)}`,
-            payload: JSON.stringify({
-                subscriptionId: subscription.id,
-                tenantId,
-                type: 'subscription',
-            }),
-            providerToken,
-            currency: 'UZS', // Узбекский сум
-            prices: [
-                { label: `Подписка (${subscription.totalDeliveries} доставок)`, amount: Math.round(subscription.totalAmount * 100) }, // в тийинах
-            ],
-            startParameter: `sub_${subscription.id.slice(0, 8)}`,
-        });
-    }
-
-    async notifySubscriptionCreated(tenantId: string, subscription: Subscription): Promise<void> {
-        try {
-            const chatId = subscription.telegramData?.chatId;
-            if (!chatId) return;
-
-            const message = `
-✅ <b>Подписка оформлена!</b>
-
-📦 ${subscription.comboProduct.name}
-💰 ${subscription.totalAmount.toLocaleString()} sum
-📅 ${subscription.totalDeliveries} доставок
-🚚 Следующая: ${subscription.nextDeliveryDate.toLocaleDateString('ru-RU')}
-
-Спасибо за заказ!
-            `.trim();
-
-            await this.tenantTelegramService.sendMessage(tenantId, {
-                chatId,
-                text: message,
-                parseMode: 'HTML',
-            });
-        } catch (error) {
-            // Не критично, если уведомление не отправилось
-            console.error('Failed to send notification:', error);
-        }
-    }
-
-    // ============ HELPERS ============
-
-    private getPeriodLabel(period: SubscriptionPeriod): string {
-        const labels: Record<string, string> = {
-            WEEKLY: 'неделю',
-            MONTHLY: 'месяц',
-            QUARTERLY: '3 месяца',
-            YEARLY: 'год',
-        };
-        return labels[period] || period;
-    }
-
-    private calculateDiscount(basePrice: number, subscriptionPrice: number): number {
-        return Math.round(((basePrice - subscriptionPrice) / basePrice) * 100);
-    }
-
-    private calculateEndDate(startDate: Date, period: SubscriptionPeriod): Date {
-        const endDate = new Date(startDate);
-        switch (period) {
-            case SubscriptionPeriod.WEEKLY:
-                endDate.setDate(endDate.getDate() + 7);
-                break;
-            case SubscriptionPeriod.MONTHLY:
-                endDate.setMonth(endDate.getMonth() + 1);
-                break;
-            case SubscriptionPeriod.QUARTERLY:
-                endDate.setMonth(endDate.getMonth() + 3);
-                break;
-            case SubscriptionPeriod.YEARLY:
-                endDate.setFullYear(endDate.getFullYear() + 1);
-                break;
-        }
-        return endDate;
-    }
-
+    // Generate unique order code
     private async generateOrderCode(): Promise<string> {
-        const result = await this.dataSource.query(
-            `SELECT COUNT(*) as count FROM subscriptions`
-        );
-        const count = parseInt(result[0].count, 10) + 1;
-        return `SUB-${1000 + count}`;
+        const prefix = 'SUB';
+        const date = new Date();
+        const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '');
+        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        return `${prefix}-${dateStr}-${random}`;
     }
 }
