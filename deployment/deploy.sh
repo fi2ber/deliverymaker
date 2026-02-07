@@ -23,7 +23,10 @@ if [ ! -f .env ]; then
 fi
 
 # Load environment variables
-export $(cat .env | grep -v '^#' | xargs)
+# Load environment variables
+set -a
+[ -f .env ] && . .env
+set +a
 
 echo -e "${YELLOW}📦 Step 1: Building images...${NC}"
 docker-compose -f docker-compose.yml build --no-cache
